@@ -30,12 +30,17 @@ def processData(train, test):
     return vectorizer.transform(train), vectorizer.transform(test)
 
 # do we want different models or is it too much?
-def buildModel():
+def buildModel(activation, loss):
     model = Sequential()
-    model.add(Dense(128, input_dim=5000, activation='relu'))
+    model.add(Dense(128, input_dim=5000, activation=activation))
     model.add(Dense(1, activation='sigmoid'))
-    model.compile(loss='binary_crossentropy', optimizer = 'adam', metrics = ['accuracy'])
+    model.compile(loss=loss, optimizer = 'adam', metrics = ['accuracy'])
     return model
+
+#different activation functions
+activations = ['relu', 'tanh', 'sigmoid']
+#different loss functions
+losses = ['binary_crossentropy', 'mean_absolute_error', 'mean_squared_error']
 
 #read in collected data
 training_data = [line.strip() for line in open('./movie_data/full_train.txt')]
@@ -48,9 +53,18 @@ pp_testing = preProcessData(testing_data)
 
 x_training, x_testing = processData(pp_training, pp_testing)
 
-model = buildModel()
+for activation in activations:
+    model = buildModel(activation, 'binary_crossentropy')
 
-model.fit(x_training, y_training, epochs=2, validation_data=(x_testing, y_testing), batch_size=150, verbose=2)
-accuracy = model.evaluate(x_testing, y_testing, verbose=False)[1]
-print(accuracy)
+    model.fit(x_training, y_training, epochs=2, validation_data=(x_testing, y_testing), batch_size=150, verbose=2)
+    accuracy = model.evaluate(x_testing, y_testing, verbose=False)[1]
+    print('Accuracy: '+str(accuracy)+' using the '+activation+' activation function')
+    print('\n')
 
+for loss in losses:
+    model = buildModel('relu', loss)
+
+    model.fit(x_training, y_training, epochs=2, validation_data=(x_testing, y_testing), batch_size=150, verbose=2)
+    accuracy = model.evaluate(x_testing, y_testing, verbose=False)[1]
+    print('Accuracy: '+str(accuracy)+' using the '+loss+' loss function')
+    print('\n')
