@@ -15,6 +15,10 @@ from sklearn.preprocessing import scale
 from nltk.tokenize import word_tokenize
 from gensim.models.word2vec import Word2Vec
 
+from nltk.corpus import stopwords
+from nltk.stem.porter import PorterStemmer
+from nltk.stem import WordNetLemmatizer
+
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '0'
 
@@ -27,7 +31,7 @@ class LabeledData:
 
 # this will likely change depending on the method we want to use
 # updated version labels each review so that we can shuffle the data
-def preProcessData(data):
+def preProcessData(data, small_stop_words=False, stop_words=False, stem=False, lemma=False):
     # define the HTML tags and punctuation we want to replace
     PUNC = re.compile("[.;:!\'?,\"()\[\]]")
     TAGS = re.compile("(<br\s*/><br\s*/>)|(\-)|(\/)")
@@ -35,6 +39,23 @@ def preProcessData(data):
     # replace punctuation as is, tags with a space
     data = [PUNC.sub("", line.lower()) for line in data]
     data = [TAGS.sub(" ", line.lower()) for line in data]
+
+    if small_stop_words:
+        to_remove = ['in','of','at','a','the']
+        data = [' '.join([word for word in review.split() if word not in to_remove]) for review in tqdm(data)]
+
+    if stop_words:
+        to_remove = stopwords.words('english')
+        data = [' '.join([word for word in review.split() if word not in to_remove]) for review in tqdm(data)]
+
+    if stem:
+        stemmer = PorterStemmer()
+        data = [' '.join([stemmer.stem(word) for word in review.split()]) for review in tqdm(data)]
+
+    if lemma:
+        lemmatizer = WordNetLemmatizer()
+        data = [' '.join([lemmatizer.lemmatize(word) for word in review.split()]) for review in tqdm(data)]
+
     return data
 
 
@@ -66,7 +87,7 @@ def processCountVector(train, test, n_grams=None):
     else:
         vectorizer = CountVectorizer(binary=False, max_features=5000, ngram_range=(1, n_grams))
     vectorizer.fit(train)
-    return vectorizer.transform(train), vectorizer.transform(test)
+    return vectorizer.transform(train), vectorizer.transform(test), 5000
 
 def processTfIdfVector(train, test, n_grams=None):
     if n_grams is None:
@@ -74,7 +95,7 @@ def processTfIdfVector(train, test, n_grams=None):
     else:
         vectorizer = TfidfVectorizer(max_features=5000, ngram_range=(1, n_grams))
     vectorizer.fit(train)
-    return vectorizer.transform(train), vectorizer.transform(test)
+    return vectorizer.transform(train), vectorizer.transform(test), 5000
 
 def processWord2Vec(train, test, model_type):
 
@@ -120,7 +141,7 @@ def processWord2Vec(train, test, model_type):
     # "scale" standardizes the data
     train_vec = scale(np.concatenate([buildWordVector(z.words, 1000, model, tfidf) for z in tqdm(train_data)]))
     test_vec = scale(np.concatenate([buildWordVector(z.words, 1000, model, tfidf) for z in tqdm(test_data)]))
-    return train_vec, test_vec
+    return train_vec, test_vec, 1000
 
 def createWord2Vec(type, cores, train):
     if type == 'Word2Vec':
@@ -157,26 +178,26 @@ activations = ['relu', 'tanh', 'sigmoid']
 # different loss functions
 losses = ['binary_crossentropy', 'mean_absolute_error', 'mean_squared_error']
 
-# read in collected data
-training_data = [line.strip() for line in open('./movie_data/full_train.txt')]
-testing_data = [line.strip() for line in open('./movie_data/full_test.txt')]
+for i in range(3):
+    # read in collected data
+    training_data = [line.strip() for line in open('./movie_data/full_train.txt')]
+    testing_data = [line.strip() for line in open('./movie_data/full_test.txt')]
 
-# strip html and punctuation and convert to LabeledData
-pp_training = preProcessData(training_data)
-pp_testing = preProcessData(testing_data)
+    # strip html and punctuation and convert to LabeledData
+    pp_training = preProcessData(training_data, small_stop_words=True)
+    pp_testing = preProcessData(testing_data, small_stop_words=True)
 
-# seperate the data and randomize it
-x_training, y_training = shuffleAndSeperateData(pp_training)
-x_testing, y_testing = shuffleAndSeperateData(pp_testing)
+    # seperate the data and randomize it
+    x_training, y_training = shuffleAndSeperateData(pp_training)
+    x_testing, y_testing = shuffleAndSeperateData(pp_testing)
 
-# get the word vectors for the data
-x_training, x_testing = createWord2Vec(x_training, x_testing)
-# x_training, x_testing = processData(x_training, x_testing)
+    # get the word vectors for the data
+    x_training, x_testing, dimensions = processData(x_training, x_testing, 'Tfidf', n_grams=2)
 
-model = buildModel('relu', 'binary_crossentropy', 1000)
-model.fit(x_training, y_training, epochs=5, validation_data=(x_testing, y_testing), batch_size=150, verbose=2)
-loss, accuracy = model.evaluate(x_testing, y_testing, verbose=False)
-print('Loss: '+str(loss))
-print('\n')
-print('Accuracy: ' + str(accuracy))
-print('\n')
+    model = buildModel('relu', 'binary_crossentropy', dimensions)
+    model.fit(x_training, y_training, epochs=5, validation_data=(x_testing, y_testing), batch_size=150, verbose=2)
+    loss, accuracy = model.evaluate(x_testing, y_testing, verbose=False)
+    print('Loss: '+str(loss))
+    print('\n')
+    print('Accuracy: ' + str(accuracy))
+    print('\n')
