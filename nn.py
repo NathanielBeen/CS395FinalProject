@@ -10,6 +10,9 @@ from tqdm import tqdm
 from gensim.models import Doc2Vec
 import multiprocessing
 from gensim.models.doc2vec import TaggedDocument
+from sklearn.linear_model import LogisticRegression
+from sklearn.svm import LinearSVC
+from sklearn.metrics import accuracy_score
 
 from sklearn.preprocessing import scale
 from nltk.tokenize import word_tokenize
@@ -83,9 +86,9 @@ def processData(train, test, type, n_grams=None):
 
 def processCountVector(train, test, n_grams=None):
     if n_grams is None:
-        vectorizer = CountVectorizer(binary=False, max_features=5000)
+        vectorizer = CountVectorizer(binary=True, max_features=5000)
     else:
-        vectorizer = CountVectorizer(binary=False, max_features=5000, ngram_range=(1, n_grams))
+        vectorizer = CountVectorizer(binary=True, max_features=5000, ngram_range=(1, n_grams))
     vectorizer.fit(train)
     return vectorizer.transform(train), vectorizer.transform(test), 5000
 
@@ -194,6 +197,11 @@ for i in range(3):
     # get the word vectors for the data
     x_training, x_testing, dimensions = processData(x_training, x_testing, 'Tfidf', n_grams=2)
 
+    '''
+    model = LinearSVC(C=0.01)
+    model.fit(x_training, y_training)
+    accuracy = accuracy_score(y_testing, model.predict(x_testing))
+    '''
     model = buildModel('relu', 'binary_crossentropy', dimensions)
     model.fit(x_training, y_training, epochs=5, validation_data=(x_testing, y_testing), batch_size=150, verbose=2)
     loss, accuracy = model.evaluate(x_testing, y_testing, verbose=False)
